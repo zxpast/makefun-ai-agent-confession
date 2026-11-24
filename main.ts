@@ -39,9 +39,41 @@ if (codePoints < 1 || codePoints > 200 || CONFESSION.trim().length === 0) {
   );
 }
 
+// Shape gate: a single clean sentence — capitalised opening, exactly
+// one trailing full stop, no leading/trailing space, and no doubled
+// whitespace anywhere (a doubled space would silently change the
+// entry's bytes without changing how it reads).
+if (
+  CONFESSION !== CONFESSION.trim() ||
+  !/^[A-Z]/.test(CONFESSION) ||
+  !/\.$/.test(CONFESSION) ||
+  CONFESSION.endsWith("..") ||
+  /\s{2,}/.test(CONFESSION)
+) {
+  throw new Error("confession fails the single-sentence shape gate");
+}
+
 const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
 fs.mkdirSync(outDir, { recursive: true });
-fs.writeFileSync(path.join(outDir, "entry.txt"), CONFESSION, "utf8");
+const outPath = path.join(outDir, "entry.txt");
+fs.writeFileSync(outPath, CONFESSION, "utf8");
+
+// Read-back verification: the file on disk must be byte-identical to
+// the confession in memory — same byte length (177, not 175: the em
+// dash is 3 UTF-8 bytes), same decoded text, and no trailing newline
+// added or lost. A silent write truncation or newline would otherwise
+// ship a different entry than the one the gates checked.
+const written = fs.readFileSync(outPath, "utf8");
+const writtenBytes = fs.statSync(outPath).size;
+if (
+  written !== CONFESSION ||
+  writtenBytes !== Buffer.byteLength(CONFESSION, "utf8") ||
+  written.endsWith("\n")
+) {
+  throw new Error(
+    `read-back mismatch: file is ${writtenBytes} bytes, expected ${Buffer.byteLength(CONFESSION, "utf8")}`,
+  );
+}
 
 console.log(CONFESSION);
 console.log(
